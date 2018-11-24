@@ -10,12 +10,18 @@
         padding: 0;
         text-align: center;
       }
+
+      h1 {
+        margin-bottom: 20px;
+      }
       #map {
         height: 100%;
       }
+
       span.abc{
           color: #03A9F4;
       }
+
       div.bar h2{
           margin-top: 0%;
           margin-bottom: 0%;
@@ -24,8 +30,16 @@
           padding-bottom: 1%;
           text-align: left;
       }
+
+      div.line {
+          position: relative;
+          margin: 0% auto;
+          height: 0.6%;
+          width: 30%;
+          background-color: #03A9F4;
+      }
+
       div.place{
-        
         background-color: #F44336;
       }
       div.food{
@@ -38,11 +52,71 @@
         margin-bottom: 0px;
         padding-bottom: 1%;
       }
+
+      #zoom-to-area-text {
+          position: relative;
+          padding-top: 20px;
+          padding-left: 6%;
+          width: 65%;
+          height: 60px;
+          color:black;
+          margin-top: 2%;
+      }
+
+      #zoom-to-area-text::placeholder {
+          color: #03A9F4;
+          opacity: 1;
+          text-align: center;
+          font-size: 25px;
+          /*font-family: 'Indie Flower', cursive;
+          font-family: 'Sedgwick Ave', cursive;
+          font-family: 'Lobster', cursive;*/
+          font-family: 'Pacifico', cursive;
+      }
+
+      #places-search::placeholder {
+          color: #03A9F4;
+          opacity: 1;
+          text-align: center;
+          font-size: 25px;
+          /*font-family: 'Indie Flower', cursive;
+          font-family: 'Sedgwick Ave', cursive;
+          font-family: 'Lobster', cursive;*/
+          font-family: 'Pacifico', cursive;
+      }
+
+      #places-search {
+          position: relative;
+          padding-top: 20px;
+          padding-left: 6%;
+          width: 65%;
+          height: 60px;
+          color:black;
+          margin-top: 2%;
+      }
+      
+      #zoom-to-area {
+          width: 5%;
+      }
     </style>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"> 
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+    <link href="https://fonts.googleapis.com/css?family=Amatic+SC|Indie+Flower|Lobster|Pacifico|Sedgwick+Ave" rel="stylesheet"> 
   </head>
   <body>
     <h1>Navigat<span class="abc">io</span></h1>
+
+
+    <div class="line">
+    </div>
+    <div>
+        <input id="places-search" type="text" placeholder="Enter the city you want to explore!!!">
+        <input id="go-places" type="button" value="go">
+    </div>
+    
+    <!-- <div>
+        <input id="zoom-to-area-text" type="text" placeholder="Enter the city you want to explore!!!">
+        <input id="zoom-to-area" type="button" value="go!!!!">
+    </div> -->
     <div class="place bar">
         <h2>Places</h2>
 
@@ -241,19 +315,339 @@
     <div id="map"></div>
     <script>
       var map;
+      var markers = [];
+      var polygon = null;
+
+      var placeMarkers = [];
       function initMap() {
-        // Constructor creates a new map - only center and zoom are required.
+
         map = new google.maps.Map(document.getElementById('map'), {
           center: {lat: 26.9124, lng: 75.7873},
-          zoom: 12
+          zoom: 5
+        });
+        
+        var largeInfowindow = new google.maps.InfoWindow();
+
+        var drawingManager = new google.maps.drawing.DrawingManager({
+          drawingMode: google.maps.drawing.OverlayType.POLYGON,
+          drawingControl: true,
+          drawingControlOptions: {
+            position: google.maps.ControlPosition.TOP_LEFT,
+            drawingModes: [
+              google.maps.drawing.OverlayType.POLYGON
+            ]
+          }
         });
 
+        var defaultIcon = makeMarkerIcon('0091ff');
+        
+        var highlightedIcon = makeMarkerIcon('FFFF24');
+
+        /*for (var i = 0; i < locations.length; i++) {
+          // Get the position from the location array.
+          var position = locations[i].location;
+          var title = locations[i].title;
+          // Create a marker per location, and put into markers array.
+          var marker = new google.maps.Marker({
+            position: position,
+            title: title,
+            animation: google.maps.Animation.DROP,
+            icon: defaultIcon,
+            id: i
+          });
+          // Push the marker to our array of markers.
+          markers.push(marker);
+          // Create an onclick event to open the large infowindow at each marker.
+          marker.addListener('click', function() {
+            populateInfoWindow(this, largeInfowindow);
+          });
+          // Two event listeners - one for mouseover, one for mouseout,
+          // to change the colors back and forth.
+          marker.addListener('mouseover', function() {
+            this.setIcon(highlightedIcon);
+          });
+          marker.addListener('mouseout', function() {
+            this.setIcon(defaultIcon);
+          });
+        }*/
+
+        var zoomAutocomplete = new google.maps.places.Autocomplete(
+            document.getElementById('zoom-to-area-text'));
+        
+        var searchBox = new google.maps.places.SearchBox(
+            document.getElementById('places-search'));
+
+        // manual markers are added here
+
+        document.getElementById('go-places').addEventListener('click', function() {
+          zoomToArea();
+        });
+
+
+
+        searchBox.addListener('places_changed', function() {
+          searchBoxPlaces(this);
+        });
+
+        document.getElementById('go-places').addEventListener('click', textSearchPlaces);
       }
+
+      function hideMarkers(markers) {
+        for (var i = 0; i < markers.length; i++) {
+          markers[i].setMap(null);
+        }
+      }
+
+      function searchBoxPlaces(searchBox) {
+        hideMarkers(placeMarkers);
+        var places = searchBox.getPlaces();
+        // For each place, get the icon, name and location.
+        createMarkersForPlaces(places);
+        if (places.length == 0) {
+          window.alert('We did not find any places matching that search!');
+        }
+      }
+
+      function makeMarkerIcon(markerColor) {
+        var markerImage = new google.maps.MarkerImage(
+          'http://chart.googleapis.com/chart?chst=d_map_spin&chld=1.15|0|'+ markerColor +
+          '|40|_|%E2%80%A2',
+          new google.maps.Size(21, 34),
+          new google.maps.Point(0, 0),
+          new google.maps.Point(10, 34),
+          new google.maps.Size(21,34));
+        return markerImage;
+      }
+
+      function textSearchPlaces() {
+        var bounds = map.getBounds();
+        hideMarkers(placeMarkers);
+        var placesService = new google.maps.places.PlacesService(map);
+        placesService.textSearch({
+          query: document.getElementById('places-search').value,
+          bounds: bounds
+        }, function(results, status) {
+          if (status === google.maps.places.PlacesServiceStatus.OK) {
+            createMarkersForPlaces(results);
+          }
+        });
+      }
+
+      function zoomToArea() {
+            var geocoder = new google.maps.Geocoder();
+
+            var address = document.getElementById('places-search').value;
+            if(address == '') {
+                window.alert('You must enter a valid city');
+            } else {
+                geocoder.geocode(
+                    { address: address,
+                      componentRestrictions: {country: 'India'}
+                    }, function(results, status) {
+                        if(status == google.maps.GeocoderStatus.OK) {
+                            map.setCenter(results[0].geometry.location);
+                            map.setZoom(13)
+                        } else {
+                            window.alert('We could not find that locaton - try Entering a more' + 'specific place.');
+                        }
+                    });
+            }
+        }
+
+      function createMarkersForPlaces(places) {
+        var bounds = new google.maps.LatLngBounds();
+        for (var i = 0; i < places.length; i++) {
+          var place = places[i];
+          var icon = {
+            url: place.icon,
+            size: new google.maps.Size(35, 35),
+            origin: new google.maps.Point(0, 0),
+            anchor: new google.maps.Point(15, 34),
+            scaledSize: new google.maps.Size(25, 25)
+          };
+          // Create a marker for each place.
+          var marker = new google.maps.Marker({
+            map: map,
+            icon: icon,
+            title: place.name,
+            position: place.geometry.location,
+            id: place.id
+          });
+          // If a marker is clicked, do a place details search on it in the next function.
+          marker.addListener('click', function() {
+          getPlacesDetails(this, place);
+          });
+          placeMarkers.push(marker);
+          if (place.geometry.viewport) {
+            // Only geocodes have viewport.
+            bounds.union(place.geometry.viewport);
+          } else {
+            bounds.extend(place.geometry.location);
+          }
+        }
+        map.fitBounds(bounds);
+      }
+
+      function getPlacesDetails(marker, infowindow) {
+      var service = new google.maps.places.PlacesService(map);
+      service.getDetails({
+        placeId: marker.id
+      }, function(place, status) {
+        if (status === google.maps.places.PlacesServiceStatus.OK) {
+          // Set the marker property on this infowindow so it isn't created again.
+          infowindow.marker = marker;
+          var innerHTML = '<div>';
+          if (place.name) {
+            innerHTML += '<strong>' + place.name + '</strong>';
+          }
+          if (place.formatted_address) {
+            innerHTML += '<br>' + place.formatted_address;
+          }
+          if (place.formatted_phone_number) {
+            innerHTML += '<br>' + place.formatted_phone_number;
+          }
+          if (place.opening_hours) {
+            innerHTML += '<br><br><strong>Hours:</strong><br>' +
+                place.opening_hours.weekday_text[0] + '<br>' +
+                place.opening_hours.weekday_text[1] + '<br>' +
+                place.opening_hours.weekday_text[2] + '<br>' +
+                place.opening_hours.weekday_text[3] + '<br>' +
+                place.opening_hours.weekday_text[4] + '<br>' +
+                place.opening_hours.weekday_text[5] + '<br>' +
+                place.opening_hours.weekday_text[6];
+          }
+          if (place.photos) {
+            innerHTML += '<br><br><img src="' + place.photos[0].getUrl(
+                {maxHeight: 100, maxWidth: 200}) + '">';
+          }
+          innerHTML += '</div>';
+          infowindow.setContent(innerHTML);
+          infowindow.open(map, marker);
+          // Make sure the marker property is cleared if the infowindow is closed.
+          infowindow.addListener('closeclick', function() {
+            infowindow.marker = null;
+          });
+        }
+      });
+    }
     </script>
 
     <script async defer
-        src="https://maps.googleapis.com/maps/api/js?key=&callback=initMap">
+        src="https://maps.googleapis.com/maps/api/js?libraries=places,geometry,drawing&key=AIzaSyCax1JKyxKXW1qQpydDzWlcHRu31fMwyOs&v=3&callback=initMap">
     </script>
 
   </body>
 </html>
+
+
+<!--var hawaMahal = {lat: 26.9239, lng:75.8267};
+        var cityPalace = {lat: 26.9258, lng:75.8237};
+        var birlaManir= {lat: 26.8922, lng:75.8154};
+        var jalMahal= {lat: 26.9535, lng:75.8462};
+
+        var kal= {lat: 26.9078, lng:75.8019};
+        var okra= {lat: 26.8418, lng:75.7962};
+        var tapri= {lat: 26.8914, lng:75.8037};
+        var bbq= {lat: 26.9165, lng:75.8096};
+
+        var bapuBazaar= {lat: 26.9195, lng:75.8236};
+        var WTP= {lat: 26.8521, lng:75.8051};
+        var johriBazaar= {lat: 26.9211, lng:75.8279};
+        var jalMahal= {lat: 26.9535, lng:75.8462};
+        var markerPlace1 = new google.maps.Marker({
+            position: hawaMahal,
+            map: map,
+            title: 'Hawa Mahal',
+            icon: {
+                url:"http://maps.google.com/mapfiles/ms/icons/red-dot.png"
+            }
+        });
+        var markerPlace2 = new google.maps.Marker({
+            position: cityPalace,
+            map: map,
+            title: 'City Palace',
+            icon: {
+                url:"http://maps.google.com/mapfiles/ms/icons/red-dot.png"
+            }
+
+        });
+        var markerPlace3 = new google.maps.Marker({
+            position: birlaManir,
+            map: map,
+            title: 'Birla Mandir',
+            icon: {
+                url:"http://maps.google.com/mapfiles/ms/icons/red-dot.png"
+            }
+        });
+        
+        var markerPlace4 = new google.maps.Marker({
+            position: jalMahal,
+            map: map,
+            title: 'Jal Mahal',
+            icon: {
+                url:"http://maps.google.com/mapfiles/ms/icons/red-dot.png"
+            }
+        });
+
+
+        var markerPlace5 = new google.maps.Marker({
+            position: kal,
+            map: map,
+            title: 'Kaleidoscope',
+            icon: {
+                url:"http://maps.google.com/mapfiles/ms/icons/yellow-dot.png"
+            }
+        });
+
+        var markerPlace6 = new google.maps.Marker({
+            position: okra,
+            map: map,
+            title: 'Okra, Marriot Jaipur',
+            icon: {
+                url:"http://maps.google.com/mapfiles/ms/icons/yellow-dot.png"
+            }
+        });
+        
+        var markerPlace7 = new google.maps.Marker({
+            position: tapri,
+            map: map,
+            title: 'Tapri Cafe',
+            icon: {
+                url:"http://maps.google.com/mapfiles/ms/icons/yellow-dot.png"
+            }
+        });
+
+        var markerPlace8 = new google.maps.Marker({
+            position: bbq,
+            map: map,
+            title: 'Barbeque Nation',
+            icon: {
+                url:"http://maps.google.com/mapfiles/ms/icons/yellow-dot.png"
+            }
+        });
+
+        var markerPlace9 = new google.maps.Marker({
+            position: bapuBazaar,
+            map: map,
+            title: 'Bapu Bazaar',
+            icon: {
+                url:"http://maps.google.com/mapfiles/ms/icons/purple-dot.png"
+            }
+        });
+        var markerPlace10 = new google.maps.Marker({
+            position: WTP,
+            map: map,
+            title: 'WTP',
+            icon: {
+                url:"http://maps.google.com/mapfiles/ms/icons/purple-dot.png"
+            }
+        });
+        var markerPlace11 = new google.maps.Marker({
+            position: johriBazaar,
+            map: map,
+            title: 'Johri Bazaar',
+            icon: {
+                url:"http://maps.google.com/mapfiles/ms/icons/purple-dot.png"
+            }
+        });
+        */-->
