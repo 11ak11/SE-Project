@@ -471,11 +471,18 @@
             icon: icon,
             title: place.name,
             position: place.geometry.location,
-            id: place.id
+            id: place.place_id
           });
+          // Create a single infowindow to be used with the place details information
+          // so that only one is open at once.
+          var placeInfoWindow = new google.maps.InfoWindow();
           // If a marker is clicked, do a place details search on it in the next function.
           marker.addListener('click', function() {
-          getPlacesDetails(this, place);
+            if (placeInfoWindow.marker == this) {
+              console.log("This infowindow already is on this marker!");
+            } else {
+              getPlacesDetails(this, placeInfoWindow);
+            }
           });
           placeMarkers.push(marker);
           if (place.geometry.viewport) {
@@ -507,7 +514,7 @@
             innerHTML += '<br>' + place.formatted_phone_number;
           }
           if (place.opening_hours) {
-            innerHTML += '<br><br><strong>Hours:</strong><br>' +
+            innerHTML += '<br><strong>Hours:</strong><br>' +
                 place.opening_hours.weekday_text[0] + '<br>' +
                 place.opening_hours.weekday_text[1] + '<br>' +
                 place.opening_hours.weekday_text[2] + '<br>' +
@@ -520,6 +527,7 @@
             innerHTML += '<br><br><img src="' + place.photos[0].getUrl(
                 {maxHeight: 100, maxWidth: 200}) + '">';
           }
+          innerHTML += '<br><input id="go-places" type="button" value="select">'
           innerHTML += '</div>';
           infowindow.setContent(innerHTML);
           infowindow.open(map, marker);
